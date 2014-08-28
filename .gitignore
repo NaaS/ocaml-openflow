@@ -13,6 +13,6 @@ setup.bin
 
 **/log
 
-mirage/**/Makefile
-mirage/**/main.ml
-mirage/**/mir-*
+mirage/*/Makefile
+mirage/*/main.ml
+mirage/*/mir-*
