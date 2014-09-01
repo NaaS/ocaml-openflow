@@ -33,11 +33,11 @@ Building the switch generates the executable `mirage/switch/mir-ofswitch`. To ru
 
 - To add a switch port, modify both config.ml and unikernel.ml in the following way:
 
-config.ml:
+**config.ml:**
 
 in main variable declaration and for every port to be added, add `network` to the arguments using combinator `@->` and register the device.
 
-unikernel.ml:
+**unikernel.ml:**
 
 1. Add arguments to the Main module--for example `(Nx: NETWORK)` where x is the device (switch port) number--that matches main variable declaration in config.ml.
 
