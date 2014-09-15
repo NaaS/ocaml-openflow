@@ -45,7 +45,7 @@ module Main (C: CONSOLE)(S: STACKV4)(N1: NETWORK)(N2: NETWORK) = struct
 	>>
 	connect_ifs netl []
 	>>= fun e ->
-		Sw.create_switch' (S.tcpv4 s) (* (switchaddr, netmask, gateway) *) (contaddr, contport) e
+		Sw.create_switch (S.tcpv4 s) (* (switchaddr, netmask, gateway) *) (contaddr, contport) e
 	>>=
 	 fun fl -> 
 		return ();
