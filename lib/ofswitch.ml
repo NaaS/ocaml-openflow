@@ -20,9 +20,10 @@ open V1_LWT
 open Lwt
 open Packet
 
-module OF = OpenFlow0x01
-module OF_Core = OpenFlow0x01_Core
-module OF_Stats = OpenFlow0x01_Stats
+open OpenFlow0x01
+open OpenFlow0x01_Core
+open OpenFlow0x01_Stats
+
 module Message = OpenFlow0x01.Message
 
 exception Packet_type_unknw
@@ -68,8 +69,8 @@ module Entry = struct
     insert_nsec: int;
     mutable last_sec: int;
     mutable last_nsec: int;
-    idle_timeout: OF_Core.timeout;
-    hard_timeout:OF_Core.timeout;
+    idle_timeout: timeout;
+    hard_timeout:timeout;
   }
 
   type queue_counter = {
@@ -89,9 +90,9 @@ module Entry = struct
   let notify_when_removed_of_flags flags = 
     (1 lsl 0) land flags != 0
 
-  let init_flow_counters (t : OF.FlowMod.t) =
+  let init_flow_counters (t : FlowMod.t) =
     let ts = int_of_float (Clock.time ()) in
-    OF_Core.({n_packets=0L; n_bytes=0L; priority=t.priority; 
+    ({n_packets=0L; n_bytes=0L; priority=t.priority; 
 	cookie=t.cookie; insert_sec=ts; insert_nsec=0; 
 	last_sec=ts;last_nsec=0; idle_timeout=t.idle_timeout; 
     hard_timeout=t.hard_timeout; flags=(flags_to_int (t.check_overlap) (t.notify_when_removed)); })
@@ -99,8 +100,8 @@ module Entry = struct
   (* flow table *)
   type t = { 
     counters: flow_counter;
-    actions: OF.Action.t list;
-    mutable cache_entries: OF.Match.t list; (* eq to header fields in manual *)
+    actions: Action.t list;
+    mutable cache_entries: Match.t list; (* eq to header fields in manual *)
   }
 
   let update_flow pkt_len flow = 
@@ -116,14 +117,14 @@ module Entry = struct
     let packet_count=flow.counters.n_packets in 
     let byte_count=flow.counters.n_bytes in
     let actions=flow.actions in
-    OF_Stats.({table_id; of_match; 
+    ({table_id; of_match; 
     duration_sec = Int32.of_int (flow.counters.last_sec -
     flow.counters.insert_sec);
     duration_nsec = Int32.of_int (flow.counters.last_nsec -
     flow.counters.insert_nsec);
     priority;
-	idle_timeout = (OF.Timeout.to_int idle_timeout);
-	hard_timeout = (OF.Timeout.to_int hard_timeout);
+	idle_timeout = (Timeout.to_int idle_timeout);
+	hard_timeout = (Timeout.to_int hard_timeout);
 	cookie;
     packet_count; byte_count; actions; })
 
@@ -281,7 +282,7 @@ module SMatch = struct
 		| _, _ -> false
 	)
 (*
-  let wildcards_of_match (m : OF.Match.t) : OF.Wildcards.t =
+  let wildcards_of_match (m : Match.t) : Wildcards.t =
 	let open OF in
 	let open OF_Core in
 
@@ -340,11 +341,11 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
   }
 
   type port = {
-    port_id: OF_Core.portId;
+    port_id: portId;
     ethif: E.t;
     port_name: string;
     counter: port_stats;
-    phy': OF.PortDescription.t;
+    phy': PortDescription.t;
     in_queue: Cstruct.t Lwt_stream.t;
     in_push : (Cstruct.t option -> unit);
     out_queue: Cstruct.t Lwt_stream.t;
@@ -360,13 +361,13 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 	   * transmitted by the controller *)
 
 	  (* XXX each entry contains a list of header fields. Why we have one per entry here? *)
-	  mutable entries: (OF.Match.t, Entry.t) Hashtbl.t;
+	  mutable entries: (Match.t, Entry.t) Hashtbl.t;
 
 	  (* Intermediate table to store exact match flows deriving from wildcard
 	   * entries *)
 
 	  (* XXX each entry contains a list of header fields. Why we have one per entry here? *)
-	  mutable cache : (OF.Match.t, Entry.t ref) Hashtbl.t;
+	  mutable cache : (Match.t, Entry.t ref) Hashtbl.t;
 	  (* stats : OP.Stats.table; *) (* removed for now *)
 	}
 
@@ -379,7 +380,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 
 	(* TODO fix flow_mod flag support. overlap is not considered *)
 	(* XXX st as argument is never used in Table functions *)
-	let add_flow st table (fm : OF_Core.flowMod) verbose =
+	let add_flow st table (fm : flowMod) verbose =
 		(* TODO check if the details are correct e.g. IP type etc. *)
 		let priority =
 		  (* max priority for exact match rules *)
@@ -404,7 +405,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 		          )
 		  ) table.cache in
 		let _ = if (verbose) then 
-		  pp "[switch] Adding flow %s\n" (OF.Match.to_string fm.pattern)
+		  pp "[switch] Adding flow %s\n" (Match.to_string fm.pattern)
 		in
 		  return ()
 
@@ -415,16 +416,16 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 
   let rec is_output_port out_port = function
 	| [] -> false
-	| OF_Core.Output (PhysicalPort portId) ::_ when (portId = out_port) -> true
+	| Output (PhysicalPort portId) ::_ when (portId = out_port) -> true
 	| head::tail -> is_output_port out_port tail 
 
 
   let marshal_optional t = match t with (* from OF *)
     | None -> 0xffff (* OFPP_NONE *)
-    | Some x -> OF.PseudoPort.marshal x
+    | Some x -> PseudoPort.marshal x
 
   let del_flow table ?(xid=(Random.int32 Int32.max_int)) 
-        ?(reason=OF_Core.Delete) tuple out_port t verbose =
+        ?(reason=Delete) tuple out_port t verbose =
 
 	let port_num = marshal_optional out_port in
     (* Delete all matching entries from the flow table*)
@@ -467,13 +468,13 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
       fun (of_match, flow) ->
         let _ = 
           if verbose then
-            pp "[switch] Removing flow %s" (OF.Match.to_string of_match)
+            pp "[switch] Removing flow %s" (Match.to_string of_match)
         in 
         match(t, Entry.notify_when_removed_of_flags flow.Entry.counters.Entry.flags (*.OP.Flow_mod.send_flow_rem *)) with
         | (Some t, true) -> 
           let duration_sec = (int_of_float (Clock.time ()))  -
             flow.Entry.counters.Entry.insert_sec in
-          let fl_rm = OF_Core.(
+          let fl_rm = (
             {pattern = of_match; cookie=flow.Entry.counters.Entry.cookie; 
             priority=flow.Entry.counters.Entry.priority;
             reason; duration_sec=(Int32.of_int duration_sec); duration_nsec=0l;
@@ -501,7 +502,6 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 	  (* monitor thread to timeout flows *)
 	let monitor_flow_timeout table t verbose = 
 	  let open Entry in
-	  let open OF in
 		let check_flow_timeout table t verbose = 
 		  let ts = int_of_float (Clock.time ()) in 
 		  let flows = Hashtbl.fold (
@@ -511,10 +511,10 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 		      match (hard, idle) with 
 		        | (l, _) when ((Timeout.to_int entry.counters.hard_timeout > 0) && 
 		                       (l >= Timeout.to_int entry.counters.hard_timeout)) ->
-		            (of_match, entry, OF_Core.HardTimeout )::ret
+		            (of_match, entry, HardTimeout )::ret
 		        | (_, l) when ((Timeout.to_int entry.counters.idle_timeout > 0) &&
 		                       (l >= Timeout.to_int entry.counters.idle_timeout)) ->
-		            ret @ [(of_match, entry, OF_Core.IdleTimeout )]
+		            ret @ [(of_match, entry, IdleTimeout )]
 		        | _ -> ret 
 		  ) table.entries [] in 
 		    Lwt_list.iter_s (
@@ -540,17 +540,17 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
           tx_bytes=0L; rx_dropped=0L; tx_dropped=0L; rx_errors=0L; 
           tx_errors=0L; rx_frame_err=0L; rx_over_err=0L; rx_crc_err=0L; 
           collisions=0L;} in
-    let features = OF.PortDescription.PortFeatures.(
+    let features = PortDescription.PortFeatures.(
         {f_10MBHD=true; f_10MBFD=true; f_100MBHD=true; f_100MBFD=true;
 		 f_1GBHD=true; f_1GBFD=true; f_10GBFD=true;
 		 copper=true; fiber=true; autoneg=true; pause=true; pause_asym=true; }) in
-    let config = OF.PortDescription.PortConfig.(
+    let config = PortDescription.PortConfig.(
         { down=false; no_stp=false; no_recv=false; 
           no_recv_stp=false; no_flood=false; no_fwd=false; 
           no_packet_in=false;}) in 
-    let state = OF.PortDescription.PortState.(
+    let state = PortDescription.PortState.(
         {down =false; stp_state = Listen}) in
-    let phy' = OF.PortDescription.(
+    let phy' = PortDescription.(
         {port_no; hw_addr; name; config;
          state; curr=features; advertised=features; 
          supported=features; peer=features;}) in
@@ -584,8 +584,8 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
     stats: stats;
     mutable errornum : int32;
     mutable portnum : int;
-    mutable features' : OF.SwitchFeatures.t;
-    mutable packet_buffer: OF.PacketIn.t list; (* OP.Packet_in.t list; *)
+    mutable features' : SwitchFeatures.t;
+    mutable packet_buffer: PacketIn.t list; (* OP.Packet_in.t list; *)
     mutable packet_buffer_id: int32;
     ready : unit Lwt_condition.t;
     verbose : bool;
@@ -593,16 +593,16 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
   }
 
  let supported_actions () =
-   OF.SwitchFeatures.SupportedActions.({ output=true; set_vlan_id=true; set_vlan_pcp=true; strip_vlan=true;
+   SwitchFeatures.SupportedActions.({ output=true; set_vlan_id=true; set_vlan_pcp=true; strip_vlan=true;
    set_dl_src=true; set_dl_dst=true; set_nw_src=true; set_nw_dst=true;
    set_nw_tos=true; set_tp_src=true; set_tp_dst=true; enqueue=false;vendor=true; })
 
  let supported_capabilities () = 
-   OF.SwitchFeatures.Capabilities.({flow_stats=true;table_stats=true;port_stats=true;stp=true;
+   SwitchFeatures.Capabilities.({flow_stats=true;table_stats=true;port_stats=true;stp=true;
    ip_reasm=false;queue_stats=false;arp_match_ip=true;})
 
   let switch_features datapath_id = 
-	OF.SwitchFeatures.({
+	SwitchFeatures.({
 	  switch_id= datapath_id;
 	  num_buffers=0l;
 	  num_tables=1; 
@@ -635,7 +635,6 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
     return (port.out_push (Some bits))
 
   let forward_frame (st : t') (* it has controller *) in_port bits checksum port = 
-	let open OF_Core in
 	let open SMatch in
     let _ = 
       if ((checksum) && ((get_dl_header_dl_type bits) = 0x800)) then 
@@ -692,7 +691,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 			return (pp "[switch] forward_frame: Input port undefined!") (* XXX return error to the controller? *)
 	  end
     | Local ->
-      let local = (OF.PseudoPort.marshal Local) in 
+      let local = (PseudoPort.marshal Local) in 
       if Hashtbl.mem st.int_to_port local then
         send_frame !(Hashtbl.find st.int_to_port local) bits
       else 
@@ -704,7 +703,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
        | Some conn -> 
 		  match in_port with
 		  | Some port ->
-			  let pkt_in = OF_Core.({ input_payload = NotBuffered bits
+			  let pkt_in = ({ input_payload = NotBuffered bits
 							; total_len = Cstruct.len bits
 							; port
 							; reason = ExplicitSend
@@ -722,8 +721,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
   (* Assume that action are valid. I will not get a flow that sets an ip
    * address unless it defines that the ethType is ip. Need to enforce
    * these rule in the parsing process of the flow_mod packets *)
-  let apply_of_actions (st : t') in_port bits (actions : OF_Core.action list) =
-	let open OF_Core in 
+  let apply_of_actions (st : t') in_port bits (actions : action list) =
 	let open SMatch in
     let apply_of_actions_inner (st : t') in_port bits checksum action =
       try_lwt
@@ -774,11 +772,11 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
           | OP.Flow.STRIP_VLAN *)
         | act ->
           let _ = (pp "[switch] apply_of_actions: Unsupported action %s" 
-                        (OF.Action.to_string act)) in (* XXX what happens if action doesn't exist at all? *)
+                        (Action.to_string act)) in (* XXX what happens if action doesn't exist at all? *)
           return checksum
       with exn -> 
         let _ = (pp  "[switch] apply_of_actions: (packet size %d) %s %s\n%!" 
-                     (Cstruct.len bits) (OF.Action.to_string action) 
+                     (Cstruct.len bits) (Action.to_string action) 
                      (Printexc.to_string exn )) in
         return checksum 
     in
@@ -797,7 +795,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
    * NOTE an exact match flow will be found on this step and thus 
    * return a result immediately, without needing to get to the cache table
    * and consider flow priorities *)
-	let _ = pp "[switch] comparing flow %s\n" (OF.Match.to_string of_match) in
+	let _ = pp "[switch] comparing flow %s\n" (Match.to_string of_match) in
 	if (Hashtbl.mem st.table.cache of_match) then
        let entry = (Hashtbl.find st.table.cache of_match) in
      	Found(entry) 
@@ -869,10 +867,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 			(Message.marshal (Random.int32 Int32.max_int) (PortStatusMsg {reason = Add; desc = port.phy'}))
   
 
-  let get_flow_stats (st : t') (ptrn : OF.Match.t) =
-	let open OF in
-	let open OF_Core in
-
+  let get_flow_stats (st : t') (ptrn : Match.t) =
 	let match_flows ptrn key value ret =
 	  if (SMatch.flow_match_compare key ptrn (* wcard *)) then ( 
 	  (Entry.flow_counters_to_flow_stats key (1) value)::ret  (* XXX table id? *)
@@ -883,9 +878,6 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 	  st.table.Table.entries []  
 
 let process_buffer_id (st : t') t msg xid buffer_id actions = (* XXX important: check functionality *)
-
-  let open OF in
-  let open OF_Core in
   let pkt_in = ref None in
 
   let _ = 
@@ -911,10 +903,7 @@ let process_buffer_id (st : t') t msg xid buffer_id actions = (* XXX important: 
 	
 
 let process_openflow (st : t') t (xid, msg) =
-
-  let open OF in
-  let open OF.Message in
-  let open OF_Stats in
+  let open Message in
 
   let _ = if st.verbose then pp "[switch*] %s\n%!" (Message.to_string msg) in
 
@@ -1112,7 +1101,7 @@ let process_openflow (st : t') t (xid, msg) =
 			  let buffer_id = st.packet_buffer_id in
 			  (*TODO Move this code in the Switch module *)
 			  st.packet_buffer_id <- Int32.add st.packet_buffer_id 1l; (*XXX check what is this *)
-			  let pkt_in = OF_Core.({ input_payload = Buffered (buffer_id, frame)
+			  let pkt_in = ({ input_payload = Buffered (buffer_id, frame)
 							; total_len = Cstruct.len frame
 							; port = in_port
 							; reason = NoMatch
@@ -1123,7 +1112,7 @@ let process_openflow (st : t') t (xid, msg) =
 			  let size =
 				if (Cstruct.len frame > 92) then 92
 				else Cstruct.len frame in
-				  let pkt_in = OF_Core.({ input_payload = Buffered (buffer_id, Cstruct.sub frame 0 size)
+				  let pkt_in = ({ input_payload = Buffered (buffer_id, Cstruct.sub frame 0 size)
 							; total_len = Cstruct.len frame
 							; port = in_port
 							; reason = NoMatch
