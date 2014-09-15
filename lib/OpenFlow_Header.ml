@@ -1,13 +1,13 @@
-open Core.Std
+(* open Core_kernel.Std *)
 
-type xid = Int32.t with sexp
+type xid = Int32.t (* with sexp *)
 
 type t = {
   version: int;
   type_code: int;
   length: int;
   xid: xid
-} with sexp
+} (* with sexp *)
 
 cstruct ofp_header {
   uint8_t version;

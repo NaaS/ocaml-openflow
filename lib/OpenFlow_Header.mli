@@ -1,4 +1,4 @@
-open Core.Std
+(* open Core_kernel.Std *)
 
 type xid = Int32.t
 
@@ -7,7 +7,7 @@ type t = {
   type_code: int;
   length: int;
   xid: xid
-} include Sexpable with type t := t
+} (* include Sexpable with type t := t *)
 
 val size : int
 
