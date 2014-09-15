@@ -23,10 +23,11 @@ module Make(T:TCPV4) : sig
   type conn_state
 
   val read_packet : conn_state -> (OpenFlow_Header.xid * OpenFlow0x01.Message.t) Lwt.t
+
   val send_packet : conn_state -> string -> unit Lwt.t
   val close : conn_state -> unit
   val create : fl -> ch
   val init_socket_conn_state : ch -> conn_state
- 
+
 end
 

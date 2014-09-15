@@ -27,67 +27,40 @@ let get_new_buffer len =
   let buf = Io_page.to_cstruct (Io_page.get 1) in 
     Cstruct.sub buf 0 len 
 
-(* module Socket *) (* changed from a module to a functor that accepts TCPv4 *)
 module Make(T:V1_LWT.TCPV4) = struct  
 
   module Channel = Channel.Make(T)
 
   type ch = Channel.t
-
   type fl = Channel.flow
-
   type t = {
 	sock: Channel.t;
 	data_cache: Cstruct.t ref; 
   }
 
-  type conn_type = 
-	| Socket of t
-(*
-	| Local of OP.t Lwt_stream.t * (OP.t option -> unit)
-	  (* XXX decide: do we need local connection anymore? *)
-*)
-	type conn_state = {
-	  mutable dpid : switchId;
-	  t : conn_type; 
-	}
+  type conn_state = {
+	mutable dpid : switchId;
+	t : t; 
+  }
 
   let create_socket sock = 
 	{ sock; data_cache=ref (get_new_buffer 0);}
 
   let init_socket_conn_state t = 
-	{dpid=0L;t=(Socket (create_socket t));}
-(*
-  let init_local_conn_state () =  (* we may not need it, ref to the comment in conn_type *)
-	let (controller_input, switch_output) = Lwt_stream.create () in 
-	let (switch_input, controller_output) = Lwt_stream.create () in 
-	let ch1 = {dpid=0L;t=(Local (controller_input, controller_output));} in 
-	let ch2 = {dpid=0L;t=(Local (switch_input, switch_output));} in
-	  (ch1, ch2)
-*)
+	{dpid=0L; t=create_socket t;}
 
   let read_packet conn =
-	match conn.t with
-	| Socket t -> 
-		lwt hbuf = Channel.read_some t.sock ~len:(Header.size) in  
-		let ofh  = Header.parse hbuf in
-		let dlen = ofh.length - Header.size in 
-		lwt dbuf = 
-		  if (dlen = 0) then 
-		    return (Cstruct.create 0)
-		  else
-		    Channel.read_some t.sock ~len:dlen 
-		  in 
-			let ofp  = Message.parse ofh (Cstruct.to_string dbuf) in
-			  return ofp
-(*
-	| Local (input, _) ->
-		match_lwt (Lwt_stream.get input) with
-		| None -> raise Lwt_stream.Closed
-			(* XXX lwt_stream has its own Closed exception.
-				what about writing it in the form if try_lwt with? *)
-		| Some ofp -> return ofp
-*)
+	lwt hbuf = Channel.read_some conn.t.sock ~len:(Header.size) in  
+	let ofh  = Header.parse hbuf in
+	let dlen = ofh.length - Header.size in 
+	lwt dbuf = 
+	  if (dlen = 0) then 
+	    return (Cstruct.create 0)
+	  else
+	    Channel.read_some conn.t.sock ~len:dlen 
+	  in 
+		let ofp  = Message.parse ofh (Cstruct.to_string dbuf) in
+		  return ofp
 
   let write_buffer t bits =
 	  let _ = Channel.write_buffer t.sock bits in  
@@ -95,26 +68,21 @@ module Make(T:V1_LWT.TCPV4) = struct
 
   (* send packet *)
   let send_packet conn ofp = 
-	match conn.t with
-	| Socket t ->  write_buffer t (Cstruct.of_string ofp)
-(*	| Local (_, output) -> return (output (Some ofp )) *)
+	write_buffer conn.t (Cstruct.of_string ofp)
 
   (* send raw data *)
-  let send_data_raw t bits = 
-	let _ = Channel.write_buffer t.sock bits in 
-	  Channel.flush t.sock
+  let send_data_raw conn bits = 
+	let _ = Channel.write_buffer conn.sock bits in 
+	  Channel.flush conn.sock
 
   (* close channel *)
   let close conn = 
-  	match conn.t with
-  	| Socket t -> 
-      resolve (
-        try_lwt
-          Channel.close t.sock
-        with exn -> 
-           return (Printf.printf "[socket] close error: %s\n%!" (Printexc.to_string exn))
-          ) 
-(*  | Local (_, output) -> output None *)
+	resolve (
+	  try_lwt
+		Channel.close conn.t.sock
+	  with exn -> 
+        return (Printf.printf "[socket] close error: %s\n%!" (Printexc.to_string exn))
+    ) 
 
   let create flow = Channel.create flow
 
