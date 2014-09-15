@@ -21,6 +21,7 @@ open Lwt
 module Make(T: TCPV4)(N: NETWORK) (*(N1: NETWORK)(N2: NETWORK)*) : sig
 
   type t
+  type t'
 (*
   type eth_netif = Ethif.Make(N).netif *)
   type eth_t = Ethif.Make(N).t
@@ -38,6 +39,8 @@ module Make(T: TCPV4)(N: NETWORK) (*(N1: NETWORK)(N2: NETWORK)*) : sig
   val init : eth_netif -> (string * string * string) -> (string * int) -> tcp_t Lwt.t 
 *)
   val create_switch : T.t -> (* (string * string * string) -> *) (string * int) -> (eth_t list)-> unit Lwt.t
+
+  val create_switch' : T.t -> (* (string * string * string) -> *) (string * int) -> (eth_t list)-> unit Lwt.t
 
 end
 

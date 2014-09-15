@@ -249,6 +249,10 @@ module Match :
       ?nw_src:Ipaddr.V4.t option -> ?nw_src_len:int ->
       ?dl_vlan_pcp:char option -> ?nw_tos:char option -> unit -> t
 
+   val flow_match_compare'' : OpenFlow0x01.Match.t -> OpenFlow0x01.Match.t -> bool
+
+   (* val flow_match_compare' : t -> OpenFlow0x01.Match.t -> OpenFlow0x01.Wildcards.t -> bool *)
+
    val flow_match_compare : t -> t -> Wildcards.t -> bool
     val create_flow_match :
       Wildcards.t ->
@@ -263,6 +267,7 @@ module Match :
       ?nw_src:Ipaddr.V4.t ->
       ?nw_dst:Ipaddr.V4.t -> ?tp_src:uint16 -> ?tp_dst:uint16 -> unit -> t
     val translate_port : t -> Port.t -> t
+    val raw_packet_to_match' : OpenFlow0x01_Core.portId -> Cstruct.t -> OpenFlow0x01_Core.pattern
     val raw_packet_to_match : Port.t -> Cstruct.t -> t
     val match_to_string : t -> string
   end

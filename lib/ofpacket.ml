@@ -679,7 +679,7 @@ module Switch = struct
     miss_send_len: uint16;
   }
 
-  let init_switch_config miss_send_len = {drop=true;reasm=true;miss_send_len;}
+  let init_switch_config miss_send_len = {drop=true;reasm=true;miss_send_len;} (* XXX two trues? *)
 
   cstruct ofp_switch_config {
     uint16_t flags;           
@@ -976,6 +976,114 @@ module Match = struct
     uint16_t checksum
   } as big_endian
 
+
+  let raw_packet_to_match' in_port bits = 
+    let dl_dst = Packet.mac_of_bytes (Cstruct.to_string (get_dl_header_dl_dst bits)) in (* XXX better idea? *)
+    let dl_src = Packet.mac_of_bytes (Cstruct.to_string (get_dl_header_dl_src bits)) in
+    let dl_type = get_dl_header_dl_type bits in
+    let bits = Cstruct.shift bits sizeof_dl_header in 
+
+    match (dl_type) with 
+    | 0x0800 -> begin
+      let nw_src = get_nw_header_nw_src bits (* Ipaddr.V4.of_int32 (get_nw_header_nw_src bits) *) in 
+      let nw_dst = get_nw_header_nw_dst bits (* Ipaddr.V4.of_int32 (get_nw_header_nw_dst bits) *) in 
+      let nw_proto = get_nw_header_nw_proto bits in 
+      let nw_tos = get_nw_header_nw_tos bits in 
+      let len = (get_nw_header_hlen_version bits) land 0xf in 
+      let bits = Cstruct.shift bits (len*4) in
+        match (nw_proto) with
+        | 17 
+        | 6 ->
+			OpenFlow0x01_Core.({ 
+			  dlSrc = Some dl_src
+			; dlDst = Some dl_dst
+			; dlTyp = Some dl_type
+			; dlVlan = Some (Some 0xffff) (* XXX funny! send to Frenetic mailing list? *)
+			; dlVlanPcp = Some 0
+			; nwSrc = Some { m_value = nw_src; m_mask = None} (* XXX where this mask come from? *)
+			; nwDst = Some { m_value = nw_dst; m_mask = None}
+			; nwProto = Some nw_proto
+			; nwTos = Some nw_tos
+			; tpSrc = Some (get_tp_header_tp_src bits)
+			; tpDst = Some (get_tp_header_tp_dst bits)
+			; inPort = Some in_port })
+        | 1 ->
+			OpenFlow0x01_Core.({ 
+			  dlSrc = Some dl_src
+			; dlDst = Some dl_dst
+			; dlTyp = Some dl_type
+			; dlVlan = Some (Some 0xffff) (* XXX funny! send to Frenetic mailing list? *)
+			; dlVlanPcp = Some 0
+			; nwSrc = Some { m_value = nw_src; m_mask = None} (* XXX where this mask come from? *)
+			; nwDst = Some { m_value = nw_dst; m_mask = None}
+			; nwProto = Some nw_proto
+			; nwTos = Some nw_tos
+			; tpSrc = Some (get_icmphdr_typ bits)
+			; tpDst = Some (get_icmphdr_code bits)
+			; inPort = Some in_port })
+        | _ ->
+			OpenFlow0x01_Core.({ 
+			  dlSrc = Some dl_src
+			; dlDst = Some dl_dst
+			; dlTyp = Some dl_type
+			; dlVlan = Some (Some 0xffff) (* XXX funny! send to Frenetic mailing list? *)
+			; dlVlanPcp = Some 0
+			; nwSrc = Some { m_value = nw_src; m_mask = None} (* XXX where this mask come from? *)
+			; nwDst = Some { m_value = nw_dst; m_mask = None}
+			; nwProto = Some nw_proto
+			; nwTos = Some nw_tos
+			; tpSrc = Some 0
+			; tpDst = Some 0
+			; inPort = Some in_port })
+      end 
+    | 0x0806 ->
+      let nw_src = get_nw_header_nw_src bits (* Ipaddr.V4.of_int32 (get_nw_header_nw_src bits) *) in 
+      let nw_dst = get_nw_header_nw_dst bits (* Ipaddr.V4.of_int32 (get_nw_header_nw_dst bits) *) in 
+		OpenFlow0x01_Core.({ 
+		  dlSrc = Some dl_src
+		; dlDst = Some dl_dst
+		; dlTyp = Some dl_type
+		; dlVlan = Some (Some 0xffff) (* XXX funny! send to Frenetic mailing list? *)
+		; dlVlanPcp = Some 0
+		; nwSrc = Some { m_value = nw_src; m_mask = None} (* XXX where this mask come from? *)
+		; nwDst = Some { m_value = nw_dst; m_mask = None}
+		; nwProto = Some (get_arphdr_ar_op bits)
+		; nwTos = Some 0
+		; tpSrc = Some 0
+		; tpDst = Some 0
+		; inPort = Some in_port })
+    | _ ->  
+		OpenFlow0x01_Core.({ 
+		  dlSrc = Some dl_src
+		; dlDst = Some dl_dst
+		; dlTyp = Some dl_type
+		; dlVlan = Some (Some 0xffff)
+		; dlVlanPcp = None
+		; nwSrc = Some { m_value = Int32.of_int 0; m_mask = None}
+		; nwDst = Some { m_value = Int32.of_int 0; m_mask = None}
+		; nwProto = None
+		; nwTos = Some 0
+		; tpSrc = Some 0
+		; tpDst = Some 0
+		; inPort = Some in_port })
+(*
+		OpenFlow0x01_Core.({ 
+		  dlSrc = None
+		; dlDst = None
+		; dlTyp = None
+		; dlVlan = None
+		; dlVlanPcp = None
+		; nwSrc = None
+		; nwDst = None
+		; nwProto = None
+		; nwTos = None
+		; tpSrc = None
+		; tpDst = None
+		; inPort = None })
+*)
+
+
+
   let raw_packet_to_match in_port bits =
     let dl_dst = Macaddr.of_bytes_exn (Cstruct.to_string (get_dl_header_dl_dst bits)) in 
     let dl_src = Macaddr.of_bytes_exn (Cstruct.to_string (get_dl_header_dl_src
@@ -1036,6 +1144,7 @@ module Match = struct
     else
       sp "%s:%s," name value 
 
+
   let match_to_string m =
     sp 
       "%s%s%s%s%s%s%s%s%s%s%s%s"
@@ -1054,6 +1163,73 @@ module Match = struct
       (print_field m.wildcards.Wildcards.nw_proto "nw_proto" (string_of_int (int_of_char m.nw_proto)))
       (print_field m.wildcards.Wildcards.tp_src "tp_src" (string_of_int m.tp_src))
       (print_field m.wildcards.Wildcards.tp_dst "tp_dst" (string_of_int m.tp_dst))
+
+(*
+  let get_value x = match x with
+    | None -> 0
+    | Some v -> v
+*)
+
+  let flow_match_compare'' (flow : OpenFlow0x01.Match.t) (flow_patten : OpenFlow0x01.Match.t) =
+    let matches f f_pattern = match f, f_pattern with
+	  | _, None -> true
+      | Some x, Some y -> x = y
+      | _, _ -> false
+	in
+	(matches flow.inPort flow_patten.inPort) &&
+	(matches flow.dlSrc flow_patten.dlSrc) && (matches flow.dlDst flow_patten.dlDst) &&
+	(matches flow.dlTyp flow_patten.dlTyp) &&
+	(matches flow.nwProto flow_patten.nwProto) &&
+	(matches flow.tpSrc flow_patten.tpSrc) && (matches flow.tpDst flow_patten.tpDst) &&
+	(matches flow.nwTos flow_patten.nwTos) &&
+	(matches flow.dlVlanPcp flow_patten.dlVlanPcp)  &&
+	(matches flow.dlVlan flow_patten.dlVlan) (* XXX check,dlvlan is of type option option vid *) &&
+	( match flow.nwSrc, flow_patten.nwSrc with
+		| _, None -> true
+		| Some {m_value = f; _} , Some {m_value = f_p; m_mask = None} -> f = f_p
+		| Some {m_value = f; _} , Some {m_value = f_p; m_mask = Some m} ->
+		    (Int32.shift_right_logical f (Int32.to_int m)) = (Int32.shift_right_logical f_p (Int32.to_int m))
+		| _, _ -> false
+	) &&
+	( match flow.nwDst, flow_patten.nwDst with
+		| _, None -> true
+		| Some {m_value = f; _} , Some {m_value = f_p; m_mask = None} -> f = f_p
+		| Some {m_value = f; _} , Some {m_value = f_p; m_mask = Some m} ->
+		    (Int32.shift_right_logical f (Int32.to_int m)) = (Int32.shift_right_logical f_p (Int32.to_int m))
+		| _, _ -> false
+	)
+(*
+		  ((nw_src_mask <= 0) ||
+		    (Int32.shift_right_logical (Ipaddr.V4.to_int32 flow.nw_src) nw_src_mask) =
+		    (Int32.shift_right_logical (Ipaddr.V4.to_int32 flow_patten.nw_src) nw_src_mask)) &&
+		  ((nw_dst_mask <= 0) ||
+		    (Int32.shift_right_logical (Ipaddr.V4.to_int32 flow.nw_dst) nw_dst_mask) =
+		    (Int32.shift_right_logical (Ipaddr.V4.to_int32 flow_patten.nw_dst) nw_dst_mask)) &&
+*)
+
+(*
+  let flow_match_compare' flow (flow_patten : OpenFlow0x01.Match.t) (wildcard : OpenFlow0x01.Wildcards.t) =
+	  let nw_src_mask = 0x20 - wildcard.nw_src in (* XXX why? check *)
+	  let nw_dst_mask = 0x20 - wildcard.nw_dst in 
+	   ((wildcard.in_port) || ( (Port.int_of_port flow.in_port) = (get_value flow_patten.inPort))) (* &&
+		  ((wildcard.dl_src)  || (flow.dl_src = get_value flow_patten.dlSrc)) &&
+		  ((wildcard.Wildcards.dl_dst)  || (flow.dl_dst = flow_patten.dl_dst)) &&
+		  ((wildcard.Wildcards.dl_type) || (flow.dl_type= flow_patten.dl_type)) &&
+		  ((wildcard.Wildcards.nw_proto)|| (flow.nw_proto = flow_patten.nw_proto)) &&
+		  ((wildcard.Wildcards.tp_src)  || (flow.tp_src = flow_patten.tp_src)) &&
+		  ((wildcard.Wildcards.tp_dst)  || (flow.tp_dst = flow_patten.tp_dst)) &&
+		  ((nw_src_mask <= 0) ||
+		    (Int32.shift_right_logical (Ipaddr.V4.to_int32 flow.nw_src) nw_src_mask) =
+		    (Int32.shift_right_logical (Ipaddr.V4.to_int32 flow_patten.nw_src) nw_src_mask)) &&
+		  ((nw_dst_mask <= 0) ||
+		    (Int32.shift_right_logical (Ipaddr.V4.to_int32 flow.nw_dst) nw_dst_mask) =
+		    (Int32.shift_right_logical (Ipaddr.V4.to_int32 flow_patten.nw_dst) nw_dst_mask)) &&
+		  ((wildcard.Wildcards.nw_tos)  || (flow.nw_tos = flow_patten.nw_tos)) &&
+		  ((wildcard.Wildcards.dl_vlan_pcp) || flow.dl_vlan_pcp =
+		          flow_patten.dl_vlan_pcp))
+*)
+*)
+
 
   let flow_match_compare flow flow_def wildcard =
 (*  pp "comparing flows %s \n%s\n%s \n%!" (Wildcards.wildcard_to_string wildcard) 
@@ -1100,6 +1276,8 @@ module Match = struct
       ((wildcard.Wildcards.nw_tos)  || (flow.nw_tos = flow_def.nw_tos)) &&
       ((wildcard.Wildcards.dl_vlan_pcp) || flow.dl_vlan_pcp =
               flow_def.dl_vlan_pcp))
+
+
 
 end
 
@@ -1163,7 +1341,7 @@ module Flow = struct
     | Set_tp_dst (port) -> sp "SET_TP_DST %d" port
     | Enqueue (port, queue) -> sp "ENQUEUE %s:%ld" (Port.string_of_port port)
     queue
-    | VENDOR_ACT   -> sp "VENDOR"
+    | VENDOR_ACT   -> sp "VENDOR" (* XXX should have unsupported stuff _ *)
 
   let rec string_of_actions = function 
     | [] -> ""

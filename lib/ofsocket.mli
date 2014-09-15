@@ -18,13 +18,15 @@ open V1_LWT
 
 module Make(T:TCPV4) : sig
   type c (* = Channel.Make(T).t *)
-  type t
+  (* type t *)
   type fl = Channel.Make(T).flow (* M: can I do it better? I cannot define it abstrct *)
   type conn_state
 
 (*  val create_socket : c -> t *)
   val read_packet : conn_state -> Ofpacket.t Lwt.t
+  val read_packet' : conn_state -> (OpenFlow_Header.xid * OpenFlow0x01.Message.t) Lwt.t
   val send_packet : conn_state -> Ofpacket.t -> unit Lwt.t
+  val send_packet' : conn_state -> string -> unit Lwt.t
   val close : conn_state -> unit
   val create : fl -> c
   val init_socket_conn_state : c -> conn_state
