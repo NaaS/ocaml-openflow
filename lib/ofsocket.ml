@@ -1,6 +1,6 @@
 (*
- * Copyright (c) 2011 Haris Rotsos <cr409@cl.cam.ac.uk>
  * Copyright (c) 2014 Masoud Koleini <masoud.koleini@nottingham.ac.uk>
+ * Copyright (c) 2011 Haris Rotsos <cr409@cl.cam.ac.uk>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,11 +16,10 @@
  *)
 
 open Lwt
+open OpenFlow0x01
 
 module Header = OpenFlow_Header
 module Message = OpenFlow0x01.Message
-
-module OP = Ofpacket
 
 let resolve t = Lwt.on_success t (fun _ -> ())
 
@@ -33,7 +32,7 @@ module Make(T:V1_LWT.TCPV4) = struct
 
   module Channel = Channel.Make(T)
 
-  type c = Channel.t
+  type ch = Channel.t
 
   type fl = Channel.flow
 
@@ -49,7 +48,7 @@ module Make(T:V1_LWT.TCPV4) = struct
 	  (* XXX decide: do we need local connection anymore? *)
 *)
 	type conn_state = {
-	  mutable dpid : OP.datapath_id;
+	  mutable dpid : switchId;
 	  t : conn_type; 
 	}
 
@@ -68,22 +67,6 @@ module Make(T:V1_LWT.TCPV4) = struct
 *)
 
   let read_packet conn =
-	match conn.t with
-	| Socket t ->
-		lwt hbuf = Channel.read_some t.sock ~len:(OP.Header.sizeof_ofp_header) in
-		let ofh = OP.Header.parse_header hbuf in
-		let dlen = ofh.OP.Header.len - OP.Header.sizeof_ofp_header in
-		lwt dbuf =
-		  if (dlen = 0) then
-			return (Cstruct.create 0)
-		  else
-			Channel.read_some t.sock ~len:dlen
-		in
-		  let ofp = OP.parse ofh dbuf in
-			return ofp
-
-
-  let read_packet' conn =
 	match conn.t with
 	| Socket t -> 
 		lwt hbuf = Channel.read_some t.sock ~len:(Header.size) in  
@@ -111,15 +94,9 @@ module Make(T:V1_LWT.TCPV4) = struct
 		Channel.flush t.sock
 
   (* send packet *)
-
-  let send_packet' conn ofp = 
-	match conn.t with
-	| Socket t ->  write_buffer t (Cstruct.of_string ofp)
-(*	| Local (_, output) -> return (output (Some ofp )) *)
-
   let send_packet conn ofp = 
 	match conn.t with
-	| Socket t ->  write_buffer t (OP.marshal ofp)
+	| Socket t ->  write_buffer t (Cstruct.of_string ofp)
 (*	| Local (_, output) -> return (output (Some ofp )) *)
 
   (* send raw data *)
