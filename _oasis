@@ -26,11 +26,11 @@ Library "openflow"
   Path:                 lib/
   Findlibname:          openflow
   CompiledObject:       native
-  Modules:              Ofpacket, Ofsocket, Ofswitch # , Ofcontroller
+  Modules:              Ofpacket, Ofsocket, Ofswitch, OpenFlow_Header, OpenFlow0x01, OpenFlow0x01_Core, OpenFlow0x01_Stats # , Ofcontroller
   Pack:                 true
   BuildDepends:         lwt, lwt.syntax, cstruct, cstruct.syntax, ipaddr,
                         mirage-types, mirage-unix, tcpip, mirage-clock-unix,
-                        rpclib, rpclib.json
+                        rpclib, rpclib.json, packet
 
 Document "openflow"
   Title:                OpenFlow docs
