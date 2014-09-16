@@ -2,7 +2,6 @@ open V1_LWT
 open Lwt
 open Printf
 
-open Openflow
 open Ofswitch
 
 let red fmt    = Printf.sprintf ("\027[31m"^^fmt^^"\027[m")

@@ -36,7 +36,11 @@ let stack console =
 
 let () =
   add_to_ocamlfind_libraries
+<<<<<<< HEAD
     ([ "tcpip.ethif"; "tcpip.tcpv4"; "tcpip.udpv4"; "tcpip.dhcpv4"; "tcpip.channel"; "cstruct.syntax"; "core_kernel"; "sexplib"; "sexplib.syntax"; "packet"; "openflow";] @ unix_libs);
+=======
+    ([ "tcpip.ethif"; "tcpip.tcpv4"; "tcpip.udpv4"; "tcpip.dhcpv4"; "tcpip.channel"; "cstruct.syntax"; "core_kernel"; "sexplib"; "sexplib.syntax"; "packet"; ] @ unix_libs);
+>>>>>>> 22296d4920f547d23f60585fea475d558184914d
 
   register "ofswitch" [
     main $ default_console $ (stack default_console) $ (netif "tap1") $ (netif "tap2")
