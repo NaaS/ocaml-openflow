@@ -1,9 +1,5 @@
 # OASIS_START
-<<<<<<< HEAD
 # DO NOT EDIT (digest: 2589947b224119a39a0e0e05a5e104cf)
-=======
-# DO NOT EDIT (digest: 38aa6f035bfd90522524d281c0a43c50)
->>>>>>> 6df49db3cdbba5c9fff22b50b080c192ca0e1457
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
