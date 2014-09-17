@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 819c2270ddb5831b085b34fa3c05b752)
+# DO NOT EDIT (digest: 2589947b224119a39a0e0e05a5e104cf)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -15,9 +15,15 @@
 "_darcs": not_hygienic
 # Library openflow
 "lib/openflow.cmxs": use_openflow
+"lib/Bits.cmx": for-pack(Openflow)
+"lib/Misc.cmx": for-pack(Openflow)
 "lib/ofpacket.cmx": for-pack(Openflow)
 "lib/ofsocket.cmx": for-pack(Openflow)
 "lib/ofswitch.cmx": for-pack(Openflow)
+"lib/OpenFlow_Header.cmx": for-pack(Openflow)
+"lib/OpenFlow0x01.cmx": for-pack(Openflow)
+"lib/OpenFlow0x01_Core.cmx": for-pack(Openflow)
+"lib/OpenFlow0x01_Stats.cmx": for-pack(Openflow)
 <lib/*.ml{,i}>: pkg_cstruct
 <lib/*.ml{,i}>: pkg_cstruct.syntax
 <lib/*.ml{,i}>: pkg_ipaddr
@@ -26,6 +32,7 @@
 <lib/*.ml{,i}>: pkg_mirage-clock-unix
 <lib/*.ml{,i}>: pkg_mirage-types
 <lib/*.ml{,i}>: pkg_mirage-unix
+<lib/*.ml{,i}>: pkg_packet
 <lib/*.ml{,i}>: pkg_rpclib
 <lib/*.ml{,i}>: pkg_rpclib.json
 <lib/*.ml{,i}>: pkg_tcpip
@@ -48,6 +55,7 @@
 "controller/lwt_controller.native": pkg_mirage-clock-unix
 "controller/lwt_controller.native": pkg_mirage-types
 "controller/lwt_controller.native": pkg_mirage-unix
+"controller/lwt_controller.native": pkg_packet
 "controller/lwt_controller.native": pkg_rpclib
 "controller/lwt_controller.native": pkg_rpclib.json
 "controller/lwt_controller.native": pkg_tcpip
@@ -64,6 +72,7 @@
 "switch/lwt_switch.native": pkg_mirage-clock-unix
 "switch/lwt_switch.native": pkg_mirage-types
 "switch/lwt_switch.native": pkg_mirage-unix
+"switch/lwt_switch.native": pkg_packet
 "switch/lwt_switch.native": pkg_re.str
 "switch/lwt_switch.native": pkg_rpclib
 "switch/lwt_switch.native": pkg_rpclib.json
@@ -83,6 +92,7 @@
 "switch/xen_switch.native": pkg_mirage-clock-unix
 "switch/xen_switch.native": pkg_mirage-types
 "switch/xen_switch.native": pkg_mirage-unix
+"switch/xen_switch.native": pkg_packet
 "switch/xen_switch.native": pkg_re.str
 "switch/xen_switch.native": pkg_rpclib
 "switch/xen_switch.native": pkg_rpclib.json
@@ -96,6 +106,7 @@
 <switch/*.ml{,i}>: pkg_mirage-clock-unix
 <switch/*.ml{,i}>: pkg_mirage-types
 <switch/*.ml{,i}>: pkg_mirage-unix
+<switch/*.ml{,i}>: pkg_packet
 <switch/*.ml{,i}>: pkg_re.str
 <switch/*.ml{,i}>: pkg_rpclib
 <switch/*.ml{,i}>: pkg_rpclib.json
@@ -110,6 +121,7 @@
 "controller/xen_controller.native": pkg_mirage-clock-unix
 "controller/xen_controller.native": pkg_mirage-types
 "controller/xen_controller.native": pkg_mirage-unix
+"controller/xen_controller.native": pkg_packet
 "controller/xen_controller.native": pkg_re.str
 "controller/xen_controller.native": pkg_rpclib
 "controller/xen_controller.native": pkg_rpclib.json
@@ -123,6 +135,7 @@
 <controller/*.ml{,i}>: pkg_mirage-clock-unix
 <controller/*.ml{,i}>: pkg_mirage-types
 <controller/*.ml{,i}>: pkg_mirage-unix
+<controller/*.ml{,i}>: pkg_packet
 <controller/*.ml{,i}>: pkg_re.str
 <controller/*.ml{,i}>: pkg_rpclib
 <controller/*.ml{,i}>: pkg_rpclib.json

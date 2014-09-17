@@ -2,6 +2,7 @@ open V1_LWT
 open Lwt
 open Printf
 
+open Openflow
 open Ofswitch
 
 let red fmt    = Printf.sprintf ("\027[31m"^^fmt^^"\027[m")
@@ -10,8 +11,6 @@ let yellow fmt = Printf.sprintf ("\027[33m"^^fmt^^"\027[m")
 let blue fmt   = Printf.sprintf ("\027[36m"^^fmt^^"\027[m")
 
 let resolve t = Lwt.on_success t (fun _ -> ())
-
-open Ofsocket
 
 let contaddr= "127.0.0.1"
 let contport = 6633
