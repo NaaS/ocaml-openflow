@@ -1,7 +1,8 @@
 # OASIS_START
-# DO NOT EDIT (digest: 3ae82a74eb7769fb71624169f2415cd7)
-Ofpacket
-Ofswitch
-Ofsocket
+# DO NOT EDIT (digest: 73526063325170dae3e1c40a1a55ab66)
+Ofswitch0x01
+Ofswitch0x04
+Ofsocket0x01
+Ofsocket0x04
 Ofcontroller
 # OASIS_STOP

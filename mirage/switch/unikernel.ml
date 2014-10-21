@@ -3,7 +3,7 @@ open Lwt
 open Printf
 
 open Openflow
-open Ofswitch
+open Ofswitch0x04
 
 let red fmt    = Printf.sprintf ("\027[31m"^^fmt^^"\027[m")
 let green fmt  = Printf.sprintf ("\027[32m"^^fmt^^"\027[m")
@@ -11,6 +11,8 @@ let yellow fmt = Printf.sprintf ("\027[33m"^^fmt^^"\027[m")
 let blue fmt   = Printf.sprintf ("\027[36m"^^fmt^^"\027[m")
 
 let resolve t = Lwt.on_success t (fun _ -> ())
+
+open Ofsocket0x04
 
 let contaddr= "127.0.0.1"
 let contport = 6633
@@ -27,7 +29,7 @@ module Main (C: CONSOLE)(S: STACKV4)(N1: NETWORK)(N2: NETWORK) = struct
 
   module T = S.TCPV4
   module E = Ethif.Make(N1)
-  module Sw = Ofswitch.Make(T)(N1)
+  module Sw = Ofswitch0x04.Make(T)(N1)
 
   let start console s n1 n2 =
 

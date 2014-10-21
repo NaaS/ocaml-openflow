@@ -320,7 +320,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 
   module E = Ethif.Make(N)
   module Channel = Channel.Make(T)
-  module OSK = Ofsocket.Make(T)
+  module OSK = Ofsocket0x01.Make(T)
 
   type eth_t = E.t 
 

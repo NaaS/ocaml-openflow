@@ -21,18 +21,17 @@ let dhcp =
   with Not_found -> `Dhcp
 
 let stack console =
-  match net, dhcp with 
+  match net, dhcp with (*
   | `Direct, `Dhcp -> direct_stackv4_with_dhcp console tap0
   | `Direct, `Static -> direct_stackv4_with_default_ipv4 console tap0
   | `Direct, _ -> direct_stackv4_with_default_ipv4 console tap0
   | `Socket, _ -> socket_stackv4 console [Ipaddr.V4.any]
+*)
 
-(*
   | _, _ -> socket_stackv4 console [Ipaddr.V4.any] (* for the controller test *)
-*)
-(*
-  | _, _ -> direct_stackv4_with_default_ipv4 console tap0 (* for the controller test *)
-*)
+
+(*  | _, _ -> direct_stackv4_with_default_ipv4 console tap0 (* for the controller test *) *)
+
 
 let () =
   add_to_ocamlfind_libraries

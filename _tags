@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 2589947b224119a39a0e0e05a5e104cf)
+# DO NOT EDIT (digest: 91100739cf79628e9715c4ea2172561d)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -17,12 +17,15 @@
 "lib/openflow.cmxs": use_openflow
 "lib/Bits.cmx": for-pack(Openflow)
 "lib/Misc.cmx": for-pack(Openflow)
-"lib/ofpacket.cmx": for-pack(Openflow)
-"lib/ofsocket.cmx": for-pack(Openflow)
-"lib/ofswitch.cmx": for-pack(Openflow)
+"lib/ofsocket0x01.cmx": for-pack(Openflow)
+"lib/ofswitch0x01.cmx": for-pack(Openflow)
+"lib/ofsocket0x04.cmx": for-pack(Openflow)
+"lib/ofswitch0x04.cmx": for-pack(Openflow)
 "lib/OpenFlow_Header.cmx": for-pack(Openflow)
 "lib/OpenFlow0x01.cmx": for-pack(Openflow)
+"lib/OpenFlow0x04.cmx": for-pack(Openflow)
 "lib/OpenFlow0x01_Core.cmx": for-pack(Openflow)
+"lib/OpenFlow0x04_Core.cmx": for-pack(Openflow)
 "lib/OpenFlow0x01_Stats.cmx": for-pack(Openflow)
 <lib/*.ml{,i}>: pkg_cstruct
 <lib/*.ml{,i}>: pkg_cstruct.syntax
@@ -38,7 +41,8 @@
 <lib/*.ml{,i}>: pkg_tcpip
 # Library switch
 "lib/switch.cmxs": use_switch
-"lib/ofswitch.cmx": for-pack(Switch)
+"lib/ofswitch0x01.cmx": for-pack(Switch)
+"lib/ofswitch0x04.cmx": for-pack(Switch)
 "lib/ofswitch_config.cmx": for-pack(Switch)
 "lib/ofswitch_standalone.cmx": for-pack(Switch)
 # Library switch_model

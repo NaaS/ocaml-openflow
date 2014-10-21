@@ -26,7 +26,7 @@ Library "openflow"
   Path:                 lib/
   Findlibname:          openflow
   CompiledObject:       native
-  Modules:              Bits, Misc, Ofpacket, Ofsocket, Ofswitch, OpenFlow_Header, OpenFlow0x01, OpenFlow0x01_Core, OpenFlow0x01_Stats # , Ofcontroller
+  Modules:              Bits, Misc, Ofsocket0x01, Ofswitch0x01, Ofsocket0x04, Ofswitch0x04, OpenFlow_Header, OpenFlow0x01, OpenFlow0x04, OpenFlow0x01_Core, OpenFlow0x04_Core, OpenFlow0x01_Stats # , Ofcontroller
   Pack:                 true
   BuildDepends:         lwt, lwt.syntax, cstruct, cstruct.syntax, ipaddr,
                         mirage-types, mirage-unix, tcpip, mirage-clock-unix,
@@ -37,7 +37,7 @@ Document "openflow"
   Type:                 OCamlbuild (0.4)
   BuildTools+:          ocamldoc
   XOCamlbuildPath:      lib/
-  XOCamlbuildModules:   Ofpacket, Ofswitch, Ofsocket, Ofcontroller
+  XOCamlbuildModules:   Ofswitch0x01, Ofswitch0x04, Ofsocket0x01, Ofsocket0x04, Ofcontroller
 
 
 ## not yet updated to mirage 2.0
@@ -56,7 +56,7 @@ Library switch
   Build$:               flag(direct)
   Install$:             flag(direct)
   CompiledObject:       native
-  Modules:              Ofswitch, Ofswitch_config, Ofswitch_standalone
+  Modules:              Ofswitch0x01, Ofswitch0x04, Ofswitch_config, Ofswitch_standalone
   Pack:                 True
   BuildDepends:         re.str, tuntap
 

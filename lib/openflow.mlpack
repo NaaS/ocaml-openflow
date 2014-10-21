@@ -1,12 +1,15 @@
 # OASIS_START
-# DO NOT EDIT (digest: 235115c9d2ac067dcc58a94a71f06fed)
+# DO NOT EDIT (digest: 73a21d38618746e7f9dd7660a41488ae)
 Bits
 Misc
-Ofpacket
-Ofsocket
-Ofswitch
+Ofsocket0x01
+Ofswitch0x01
+Ofsocket0x04
+Ofswitch0x04
 OpenFlow_Header
 OpenFlow0x01
+OpenFlow0x04
 OpenFlow0x01_Core
+OpenFlow0x04_Core
 OpenFlow0x01_Stats
 # OASIS_STOP
