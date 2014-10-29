@@ -47,6 +47,8 @@ let get_new_buffer len =
   let buf = Io_page.to_cstruct (Io_page.get 1) in 
     Cstruct.sub buf 0 len 
 
+let emsg = Cstruct.create 0
+
 (* XXX any possible replacement? *)
 let or_error name fn t =
   fn t
@@ -58,17 +60,17 @@ let or_error name fn t =
 module Entry = struct
 
   type flow_counter = {
-    mutable n_packets: int64;
-    mutable n_bytes: int64;
+    mutable packet_count: int64;
+    mutable byte_count: int64;
+    mutable duration_sec: int;
+    mutable duration_nsec: int;
     flags : flowModFlags;
     priority: int16;
     cookie: cookie mask;
     insert_sec: int;
     insert_nsec: int;
-    mutable last_sec: int;
-    mutable last_nsec: int;
     idle_timeout: timeout;
-    hard_timeout:timeout;
+    hard_timeout: timeout;
   }
 
   type queue_counter = {
@@ -77,12 +79,12 @@ module Entry = struct
     tx_queue_overrun_errors: int64;
   }
 
-  let init_flow_counters flowmod = (* we may require more information to save *)
+  let init_flow_counters flowmod (packet_count, byte_count) =
     let ts = int_of_float (Clock.time ()) in
-    ({n_packets=0L; n_bytes=0L;
-	  priority=flowmod.mfPriority; cookie=flowmod.mfCookie; (* XXX what to do? *)
-	  insert_sec=ts; insert_nsec=0; (* XXX Do we need nsec? timeouts are in sec *)
-	  last_sec=ts; last_nsec=0; idle_timeout=flowmod.mfIdle_timeout; hard_timeout=flowmod.mfHard_timeout;
+    ({packet_count; byte_count;
+	  priority=flowmod.mfPriority; cookie=flowmod.mfCookie;
+	  insert_sec=ts; insert_nsec=0;
+	  duration_sec=ts; duration_nsec=0; idle_timeout=flowmod.mfIdle_timeout; hard_timeout=flowmod.mfHard_timeout;
 	  flags=flowmod.mfFlags; })
 
   (* flow entry *)
@@ -93,21 +95,21 @@ module Entry = struct
   }
 
   let update_flow pkt_len flow = 
-    flow.counters.n_packets <- Int64.add flow.counters.n_packets 1L;
-    flow.counters.n_bytes <- Int64.add flow.counters.n_bytes pkt_len;
-    flow.counters.last_sec <- int_of_float (Clock.time ())
+    flow.counters.packet_count <- Int64.add flow.counters.packet_count 1L;
+    flow.counters.byte_count <- Int64.add flow.counters.byte_count pkt_len;
+    flow.counters.duration_sec <- int_of_float (Clock.time ())
 
   let flow_counters_to_flow_stats ofp_match table_id flow = (* return type: individualStats *)
    	{table_id
-	; duration_sec = Int32.of_int (flow.counters.last_sec - flow.counters.insert_sec)
-	; duration_nsec = Int32.of_int (flow.counters.last_nsec - flow.counters.insert_nsec)
+	; duration_sec = Int32.of_int (flow.counters.duration_sec - flow.counters.insert_sec)
+	; duration_nsec = Int32.of_int (flow.counters.duration_nsec - flow.counters.insert_nsec)
 	; priority = flow.counters.priority
 	; idle_timeout = flow.counters.idle_timeout
 	; hard_timeout = flow.counters.hard_timeout
 	; flags = flow.counters.flags
 	; cookie = flow.counters.cookie.m_value (* XXX note: flow stats doesn't have mask... what does it mean? *)
-	; packet_count = flow.counters.n_packets
-	; byte_count = flow.counters.n_bytes
+	; packet_count = flow.counters.packet_count
+	; byte_count = flow.counters.byte_count
 	; instructions = flow.instructions
 	; ofp_match}
 
@@ -490,26 +492,12 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 	}
 
 	type t = {
-	  tid: tableId; (* XXX why we have cookie in both table and entry module? Do we need it for Table? *)
+	  tid: tableId; (* XXX why we have cookie in both table and entry module? *)
 
-	  (* This entry stores wildcard and exact match entries as
-	   * transmitted by the controller *)
-
-	  (* XXX Match fileds (OfpMatch) + priority is unique in table.
-		We keep a list of entries that are different in priority for each OfpMatch.
-		Therefore, entries will have unique OfpMatch *)
-	  (* XXX IMPORTANT: for not to modify a huge bunch of code, I keep table structure 
-		 as before. It has to be fixed later *)
+	  (* Match fileds (OfpMatch) is unique in a tables. *)
 	  mutable entries: (OfpMatch.t, Entry.t) Hashtbl.t;
-
-	  (* Intermediate table to store exact match flows deriving from wildcard
-	   * entries *)
-
-	  (* XXX each entry contains a list of header fields. Why we have one per entry here? *)
-	  (* XXX IMPORTANT: get rid of cache. No performance enhancement with current structure *)
 	  mutable cache : (OfpMatch.t, Entry.t ref) Hashtbl.t;
 	  (* stats : OP.Stats.table; *) (* removed for now *)
-
 	  mutable counter : table_counter; (* TODO: update it *)
 	}
 
@@ -542,10 +530,17 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 	  in
 		match non_overlap with
 		| true ->
+			let counters =
+			  if fm.mfFlags.fmf_reset_counts || not (Hashtbl.mem table.entries fm.mfOfp_match) then
+			    Entry.init_flow_counters fm (0L, 0L)
+			  else
+				let e = Hashtbl.find table.entries fm.mfOfp_match in
+				Entry.init_flow_counters fm (e.counters.packet_count, e.counters.byte_count)
+			in
 			let entry = Entry.({
-						  instructions=fm.mfInstructions
-						; counters=(init_flow_counters fm)
-						; cache_entries=[]
+						  instructions = fm.mfInstructions
+						; counters
+						; cache_entries = []
 						}) in  
 			let _ = Hashtbl.replace table.entries fm.mfOfp_match entry in
 			let _ = 
@@ -559,15 +554,15 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 				          entry.Entry.cache_entries <- a :: entry.Entry.cache_entries
 				      )
 			  ) table.cache in
-			let _ = if (verbose) then 
-			  pp "[switch] Adding flow %s\n" (OfpMatch.to_string fm.mfOfp_match)
+			let _ = if verbose then 
+			  pp "[switch] adding flow %s\n" (OfpMatch.to_string fm.mfOfp_match)
 			in
 			  return ()
 		| false ->
-			let _ = if (verbose) then
+			let _ = if verbose then
 			  pp "[switch] add_flow overlap error!";
 			in
-			  OSK.send_packet conn (Message.marshal xid (Error {err = FlowModFailed FlOverlap; data = Cstruct.create 0}))
+			  OSK.send_packet conn (Message.marshal xid (Error {err = FlowModFailed FlOverlap; data = emsg}))
 
   let marshal_optional t = match t with (* from OF *)
     | None -> 0xffffl (* OFPP_NONE *)
@@ -619,8 +614,8 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 			; duration_nsec = 0l
 			; idle_timeout = flow.Entry.counters.Entry.idle_timeout
 			; hard_timeout = flow.Entry.counters.Entry.hard_timeout
-			; packet_count = flow.Entry.counters.Entry.n_packets
-			; byte_count = flow.Entry.counters.Entry.n_bytes
+			; packet_count = flow.Entry.counters.Entry.packet_count
+			; byte_count = flow.Entry.counters.Entry.byte_count
 			; oxm = of_match }
 		) in
 			OSK.send_packet t (Message.marshal xid (FlowRemoved fl_rm))
@@ -647,7 +642,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 		  let flows = Hashtbl.fold (
 		    fun of_match entry ret -> 
 		      let hard = ts - entry.counters.insert_sec in
-		      let idle = ts - entry.counters.last_sec in
+		      let idle = ts - entry.counters.duration_sec in
 		      match (hard, idle) with 
 		        | (l, _) -> begin
 						match entry.counters.hard_timeout with
@@ -1098,7 +1093,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 			)
 		  ) 
 		 )
-	  then (Int64.add fl_b flow.counters.n_bytes, Int64.add fl_p flow.counters.n_packets, Int32.succ fl)
+	  then (Int64.add fl_b flow.counters.byte_count, Int64.add fl_p flow.counters.packet_count, Int32.succ fl)
 	  else (fl_b, fl_p, fl)
 	in
 	  let rec get_aggr_stats_r tables aggr =
@@ -1198,7 +1193,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 			  with Not_found ->
 				pp "[switch] invalid table id (%d) in flow stats request\n%!" table_id;
 				OSK.send_packet conn (Message.marshal xid (Error { err = BadRequest ReqBadTableId
-															  ; data = Cstruct.create 0}))
+															  ; data = emsg}))
 			end
 
 		  | AggregFlowStatsReq
@@ -1223,7 +1218,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 			  with Not_found ->
 				pp "[switch] invalid table id (%d) in flow stats request\n%!" table_id;
 				OSK.send_packet conn (Message.marshal xid (Error { err = BadRequest ReqBadTableId
-															  ; data = Cstruct.create 0}))
+															  ; data = emsg}))
 			end
 
 		  | TableStatsReq -> (* XXX 64KB restriction required? *)
@@ -1253,7 +1248,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 	*)
 		  | _ -> 
 			OSK.send_packet conn (Message.marshal xid (Error { err = BadRequest ReqBadMultipart
-														  ; data = Cstruct.create 0}))
+														  ; data = emsg}))
 	end (* MultipartReq *)
 
 	| FlowModMsg fm -> 							(* TODO: Careful revision of add/mod/strict *)
@@ -1267,7 +1262,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 			with Not_found ->
 			  pp "[switch] invalid table id (%d) in flow mod (add/mod) request\n%!" fm.mfTable_id;
 			  OSK.send_packet conn (Message.marshal xid (Error { err = BadRequest ReqBadTableId
-															  ; data = Cstruct.create 0}))
+															  ; data = emsg}))
 			end
 	 
 	      | DeleteFlow | DeleteStrictFlow ->	(* TODO: Careful revision of del/strict *)
@@ -1280,7 +1275,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 			with Not_found ->
 			  pp "[switch] invalid table id (%d) in flow mod (add/mod) request\n%!" fm.mfTable_id;
 			  OSK.send_packet conn (Message.marshal xid (Error { err = BadRequest ReqBadTableId
-															  ; data = Cstruct.create 0}))
+															  ; data = emsg}))
 			end
 	  in
 		return ()
@@ -1315,7 +1310,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 	  | ErrorMsg _ ->
 	*)
 	| _ ->
-	  OSK.send_packet conn (Message.marshal xid (Error {err = BadRequest ReqBadType; data = Cstruct.create 0}))
+	  OSK.send_packet conn (Message.marshal xid (Error {err = BadRequest ReqBadType; data = emsg}))
 
 (* end of process_openflow *)
 
@@ -1328,7 +1323,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
   	while_lwt !is_active do
       let _ = sw.echo_resp_received <- false in 
       let _ = sw.last_echo_req <- (Clock.time ()) in 
-      lwt _ = OSK.send_packet conn (Message.marshal 1l (EchoRequest (Cstruct.create 0))) in (* XXX check xid *)
+      lwt _ = OSK.send_packet conn (Message.marshal 1l (EchoRequest (emsg))) in (* XXX check xid *)
 		lwt _ = OS.Time.sleep 10.0 in 
 		return (is_active := sw.echo_resp_received) 
 	done 
