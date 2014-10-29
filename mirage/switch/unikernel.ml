@@ -2,19 +2,15 @@ open V1_LWT
 open Lwt
 open Printf
 
-open Openflow
 open Ofswitch0x04
+open Ofsocket0x04
 
 let red fmt    = Printf.sprintf ("\027[31m"^^fmt^^"\027[m")
 let green fmt  = Printf.sprintf ("\027[32m"^^fmt^^"\027[m")
 let yellow fmt = Printf.sprintf ("\027[33m"^^fmt^^"\027[m")
 let blue fmt   = Printf.sprintf ("\027[36m"^^fmt^^"\027[m")
 
-let resolve t = Lwt.on_success t (fun _ -> ())
-
-open Ofsocket0x04
-
-let contaddr= "127.0.0.1"
+let contaddr= "128.243.20.84"
 let contport = 6633
 
 module Main (C: CONSOLE)(S: STACKV4)(N1: NETWORK)(N2: NETWORK) = struct
@@ -47,7 +43,5 @@ module Main (C: CONSOLE)(S: STACKV4)(N1: NETWORK)(N2: NETWORK) = struct
 	connect_ifs netl []
 	>>= fun e ->
 		Sw.create_switch (S.tcpv4 s) (* (switchaddr, netmask, gateway) *) (contaddr, contport) e
-	>>=
-	 fun fl -> 
-		return ();
+
 end
