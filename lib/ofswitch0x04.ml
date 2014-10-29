@@ -87,7 +87,7 @@ module Entry = struct
 
   (* flow entry *)
   type t = { 
-    mutable cache_entries: OfpMatch.t list; (* eq to header fields in manual *)
+    mutable cache_entries: OfpMatch.t list;
     counters: flow_counter;
     instructions: instruction list;
   }
@@ -516,7 +516,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 	let init_table id =
 		{ tid = id; entries = (Hashtbl.create 10000); cache = (Hashtbl.create 10000);
 		  counter = {n_active = 0l; n_lookups = 0L; n_matches = 0L}
-		} (* XXX tid 0 *)
+		}
 
 	let rec init_tables id =
 	  if id < max_table_num then
@@ -524,46 +524,50 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 	  else
 		[]
 
-	(* TODO fix flow_mod flag support. overlap is not considered *)	
-	(* make it compliant with manual p37 *)
-	let add_flow table (fm : flowMod) verbose =
-		(* TODO check if the details are correct e.g. IP type etc. *)
-		let priority =
-		  (* max priority for exact match rules *)
-		  (* if  ((wildcards_of_match t) ={
-    in_port = false; dl_vlan: false; dl_src: false; dl_dst: false; dl_type: false; nw_proto: false;
-    tp_src: false; tp_dst: false; nw_src: 0; nw_dst: 0; dl_vlan_pcp: false; nw_tos: false;}) then *)
-		    0x1001 (* XXX important: check it *)
-		in
-		let entry = Entry.({
-					  instructions=fm.mfInstructions
-					; counters=(init_flow_counters fm)
-					; cache_entries=[] (* XXX check the usage *)
-					}) in  
-		let _ = Hashtbl.replace table.entries fm.mfOfp_match entry in
-		(* XXX lists with different ordering
-							will become diffent keys. Change list to set? *)
-		(* In the fast path table, I need to delete any conflicting entries *)
-		let _ = 
-		  Hashtbl.iter (
-		    fun a e -> 
-		      if ((SwMatch.check_flow_overlap a fm.mfOfp_match) && (* how to find? *)
-		          Entry.(entry.counters.priority >= (!e).counters.priority)) then ( 
-		            let _ = (!e).Entry.cache_entries <- 
-		              List.filter (fun c -> a <> c) (!e).Entry.cache_entries in 
-		            let _ = Hashtbl.replace table.cache a (ref entry) in 
-		              entry.Entry.cache_entries <- a :: entry.Entry.cache_entries
-		          )
-		  ) table.cache in
-		let _ = if (verbose) then 
-		  pp "[switch] Adding flow %s\n" (OfpMatch.to_string fm.mfOfp_match)
-		in
-		  return ()
-
-	  (* check if a list of actions has an output action forwarding packets to
-	   * out_port.
-	   * Used when removing a port from the switch control in order to clean related
-	   * flows *)
+	let add_flow table ?(xid=Random.int32 Int32.max_int) (fm : flowMod) conn verbose =
+	  let non_overlap = (* check overlap *)
+		if (fm.mfFlags.fmf_check_overlap) then
+		  try
+			let _ = Hashtbl.iter (
+			  fun of_match entry -> 
+				if (SwMatch.check_flow_overlap of_match fm.mfOfp_match &&
+					entry.Entry.counters.priority = fm.mfPriority) then 
+				  raise Overlap
+          	) table.entries
+			in
+			  true
+		  with Overlap -> false
+		else
+		  true
+	  in
+		match non_overlap with
+		| true ->
+			let entry = Entry.({
+						  instructions=fm.mfInstructions
+						; counters=(init_flow_counters fm)
+						; cache_entries=[]
+						}) in  
+			let _ = Hashtbl.replace table.entries fm.mfOfp_match entry in
+			let _ = 
+			  Hashtbl.iter (
+				fun a e -> 
+				  if ((SwMatch.check_flow_overlap a fm.mfOfp_match) &&
+				      Entry.(entry.counters.priority >= (!e).counters.priority)) then ( 
+				        let _ = (!e).Entry.cache_entries <- 
+				          List.filter (fun c -> a <> c) (!e).Entry.cache_entries in 
+				        let _ = Hashtbl.replace table.cache a (ref entry) in 
+				          entry.Entry.cache_entries <- a :: entry.Entry.cache_entries
+				      )
+			  ) table.cache in
+			let _ = if (verbose) then 
+			  pp "[switch] Adding flow %s\n" (OfpMatch.to_string fm.mfOfp_match)
+			in
+			  return ()
+		| false ->
+			let _ = if (verbose) then
+			  pp "[switch] add_flow overlap error!";
+			in
+			  OSK.send_packet conn (Message.marshal xid (Error {err = FlowModFailed FlOverlap; data = Cstruct.create 0}))
 
   let marshal_optional t = match t with (* from OF *)
     | None -> 0xffffl (* OFPP_NONE *)
@@ -571,32 +575,18 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 
 
   (* TODO: match with p37 of 1.4 manual after modifying entry data type in the table *)
-  let del_flow table ?(xid=(Random.int32 Int32.max_int)) 
-        ?(reason=FlowDelete) dflow out_port t verbose =
+  let del_flow table ?(xid=Random.int32 Int32.max_int)
+			?(reason=FlowDelete) dflow out_port conn verbose =
 
 	let port_num = marshal_optional out_port in
     (* Delete all matching entries from the flow table*)
     let remove_flow = 
       Hashtbl.fold (
         fun of_match flow ret -> 
-          if ((SwMatch.check_flow_overlap of_match dflow) && 
+          if ((SwMatch.check_flow_overlap of_match dflow) && (* remove overlappings or exact matches? *)
               ((port_num = 0xffffl) ||
                (is_output_port port_num flow.Entry.instructions))) then ( 
             let _ = Hashtbl.remove table.entries of_match in 
-            (* log removal of flow *)
-(*            let _ = 
-              match Lwt.get OS.Topology.node_name with
-              | None -> ()
-              | Some(node_name) -> 
-                  let flow_str = OP.Match.match_to_string of_match in
-                  let action_str = OP.Flow.string_of_actions flow.Entry.actions in
-                  let msg = Rpc.Dict [ 
-                    ("name", (Rpc.String node_name));
-                    ("type", (Rpc.String "del"));
-                    ("flow", (Rpc.String flow_str)); 
-                    ("action", (Rpc.String action_str));] in
-                    OS.Console.broadcast "flow" (Jsonrpc.to_string msg)
-    in *)
                (of_match, flow)::ret
           ) else ret
           ) table.entries [] in
@@ -616,7 +606,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
           if verbose then
             pp "[switch] Removing flow %s" (OfpMatch.to_string of_match)
         in 
-        match(t, flow.Entry.counters.flags.fmf_send_flow_rem) with
+        match(conn, flow.Entry.counters.flags.fmf_send_flow_rem) with
         | (Some t, true) -> 
           let duration_sec = (int_of_float (Clock.time ()))  -
             flow.Entry.counters.Entry.insert_sec in
@@ -988,15 +978,11 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 
 
   let lookup_flow (table : Table.t) of_match =
-  (* Check first the match table cache
-   * NOTE an exact match flow will be found on this step and thus 
-   * return a result immediately, without needing to get to the cache table
+  (* Check of_match first in table's cache.
+   * If an exact match flow will be found on this step (an operation of O(1)), then 
+   * return a result immediately, without needing to iterate through table's entries
    * and consider flow priorities *)
 	if (Hashtbl.mem table.cache of_match) then
-	(*	let _ = Hashtbl.iter 
-		(fun m e -> pp "cache: %s\n Instructions: %s\n"
-			(OfpMatch.to_string m) (Instructions.to_string (!e).Entry.instructions)) table.cache in
-	*)
       let entry = (Hashtbl.find table.cache of_match) in
 	  let _ = pp "exact match in table!\n" in
      	Found(of_match, entry) 
@@ -1015,7 +1001,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 		  match (flow_match) with
 		  | None ->  NOT_FOUND
 		  | Some(f,e) ->
-		    (* Hashtbl.add table.cache of_match (ref e); *)
+		    Hashtbl.add table.cache of_match (ref e);
 		    Entry.(e.cache_entries <- of_match :: e.cache_entries); 
 		  	  Found (f, ref e)
 	end
@@ -1127,7 +1113,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 (* called when a packet is buffered --
    buffering applies to missed packet for this implementation
 *)
-  let process_buffer_id (st : t) t msg xid buffer_id port_in actions = (* XXX check correct functionality *)
+  let process_buffer_id (st : t) conn msg xid buffer_id port_in actions = (* XXX check correct functionality *)
 	let pkt_in = ref None in
 	let _ = 
 	  st.packet_buffer <-
@@ -1139,12 +1125,12 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 		  match (!pkt_in) with 
 		  | None ->
 			  pp "[switch] invalid buffer id %ld\n%!" buffer_id; 
-			  OSK.send_packet t (Message.marshal xid (Error {err = BadRequest ReqBufferUnknown; data = msg}))
+			  OSK.send_packet conn (Message.marshal xid (Error {err = BadRequest ReqBufferUnknown; data = msg}))
 		  | Some frame ->
 			  let (table_id, cookie, of_match) = (0, -1L, []) in
 			  apply_of_actions st port_in msg actions table_id cookie of_match
 	
-  let process_openflow (st : t) t (xid, msg) =
+  let process_openflow (st : t) conn (xid, msg) =
 	let open Message in
 
 	let _ = if st.verbose then pp "[switch] %s\n%!" (Message.to_string msg) in
@@ -1152,10 +1138,10 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 	match msg with
 	| Hello buf -> return () 					(* TODO: check version *)
 	| EchoRequest buf -> 						(* Reply to ECHO requests *)
-		OSK.send_packet t (Message.marshal xid msg) 
+		OSK.send_packet conn (Message.marshal xid msg) 
 	| EchoReply buf -> return (st.echo_resp_received <- true) 
 	| FeaturesRequest  -> 
-		OSK.send_packet t (Message.marshal xid (FeaturesReply st.features'))
+		OSK.send_packet conn (Message.marshal xid (FeaturesReply st.features'))
 
 	| MultipartReq {mpr_type = req; mpr_flags = flag } ->
 	  begin (* MultipartReq *)
@@ -1166,11 +1152,11 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 					; sw_desc = "Mirage"
 					; serial_num = "0.1" } in
 			let rep = {mpreply_typ = p; mpreply_flags = false} in (* XXX check flag *)
-	 		  OSK.send_packet t (Message.marshal xid (MultipartReply rep)) 
+	 		  OSK.send_packet conn (Message.marshal xid (MultipartReply rep)) 
 		  | PortsDescReq ->
 			let stats = PortsDescReply (List.map (fun x -> x.phy) st.ports) in
 			let rep = {mpreply_typ = stats; mpreply_flags = false} in (* XXX check flag *)
- 			  OSK.send_packet t (Message.marshal xid (MultipartReply rep))
+ 			  OSK.send_packet conn (Message.marshal xid (MultipartReply rep))
 
 		  | FlowStatsReq 
 				{ fr_table_id = table_id; fr_out_port = port
@@ -1199,7 +1185,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 						  if (OpenFlow_Header.size + fl_sz > 0xffff (* 64KB limit *)) then 
 						  	let rep = { mpreply_typ = FlowStatsReply flows
 							  		  ; mpreply_flags = true} in (* more reply will come *)
-				  			let _ = OSK.send_packet t (Message.marshal xid (MultipartReply rep)) in
+				  			let _ = OSK.send_packet conn (Message.marshal xid (MultipartReply rep)) in
 							return [fl]
 						  else
 							return (fl::flows) )
@@ -1207,11 +1193,11 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 					in
 					let rep = { mpreply_typ = FlowStatsReply flows
 							  ; mpreply_flags = false} in
-					OSK.send_packet t (Message.marshal xid (MultipartReply rep))
+					OSK.send_packet conn (Message.marshal xid (MultipartReply rep))
 
 			  with Not_found ->
 				pp "[switch] invalid table id (%d) in flow stats request\n%!" table_id;
-				OSK.send_packet t (Message.marshal xid (Error { err = BadRequest ReqBadTableId
+				OSK.send_packet conn (Message.marshal xid (Error { err = BadRequest ReqBadTableId
 															  ; data = Cstruct.create 0}))
 			end
 
@@ -1232,11 +1218,11 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 				  let stats = { packet_count; byte_count; flow_count} in
 				  let rep = { mpreply_typ = AggregateReply stats
 							; mpreply_flags = false} in
-				  OSK.send_packet t (Message.marshal xid (MultipartReply rep))
+				  OSK.send_packet conn (Message.marshal xid (MultipartReply rep))
 
 			  with Not_found ->
 				pp "[switch] invalid table id (%d) in flow stats request\n%!" table_id;
-				OSK.send_packet t (Message.marshal xid (Error { err = BadRequest ReqBadTableId
+				OSK.send_packet conn (Message.marshal xid (Error { err = BadRequest ReqBadTableId
 															  ; data = Cstruct.create 0}))
 			end
 
@@ -1248,12 +1234,12 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 					; matched_count = t.Table.counter.n_matches}) st.table in
 				let rep = { mpreply_typ = TableReply tstats
 						  ; mpreply_flags = false} in
-				OSK.send_packet t (Message.marshal xid (MultipartReply rep))
+				OSK.send_packet conn (Message.marshal xid (MultipartReply rep))
 				
 		  | PortStatsReq port -> (* XXX 64KB restriction required? *)
 			let stats = PortStatsReply (List.map (fun x -> x.counter) st.ports) in
 			let rep = {mpreply_typ = stats; mpreply_flags = false} in
-	 		  OSK.send_packet t (Message.marshal xid (MultipartReply rep)) 
+	 		  OSK.send_packet conn (Message.marshal xid (MultipartReply rep)) 
 	(* XXX TODO
 		  | QueueStatsReq of queueRequest
 		  | GroupStatsReq of int32
@@ -1266,7 +1252,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 		  | ExperimentReq of experimenter  
 	*)
 		  | _ -> 
-			OSK.send_packet t (Message.marshal xid (Error { err = BadRequest ReqBadMultipart
+			OSK.send_packet conn (Message.marshal xid (Error { err = BadRequest ReqBadMultipart
 														  ; data = Cstruct.create 0}))
 	end (* MultipartReq *)
 
@@ -1277,10 +1263,10 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 			begin
 			try
 			  let table = List.find (fun x -> x.Table.tid = fm.mfTable_id) st.table in
-				Table.add_flow table fm st.verbose
+				Table.add_flow table fm conn st.verbose
 			with Not_found ->
 			  pp "[switch] invalid table id (%d) in flow mod (add/mod) request\n%!" fm.mfTable_id;
-			  OSK.send_packet t (Message.marshal xid (Error { err = BadRequest ReqBadTableId
+			  OSK.send_packet conn (Message.marshal xid (Error { err = BadRequest ReqBadTableId
 															  ; data = Cstruct.create 0}))
 			end
 	 
@@ -1290,27 +1276,27 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 			begin
 			try
 			  let table = List.find (fun x -> x.Table.tid = fm.mfTable_id) st.table in
-				Table.del_flow table fm.mfOfp_match fm.mfOut_port (Some t) st.verbose
+				Table.del_flow table fm.mfOfp_match fm.mfOut_port (Some conn) st.verbose
 			with Not_found ->
 			  pp "[switch] invalid table id (%d) in flow mod (add/mod) request\n%!" fm.mfTable_id;
-			  OSK.send_packet t (Message.marshal xid (Error { err = BadRequest ReqBadTableId
+			  OSK.send_packet conn (Message.marshal xid (Error { err = BadRequest ReqBadTableId
 															  ; data = Cstruct.create 0}))
 			end
 	  in
 		return ()
 
 	| GetConfigRequestMsg ->
-		OSK.send_packet t (Message.marshal xid (GetConfigReplyMsg { flags = NormalFrag; miss_send_len = st.pkt_len}))
+		OSK.send_packet conn (Message.marshal xid (GetConfigReplyMsg { flags = NormalFrag; miss_send_len = st.pkt_len}))
 				(* XXX check it *)
 
 	| BarrierRequest ->
-		OSK.send_packet t (Message.marshal xid (BarrierReply))
+		OSK.send_packet conn (Message.marshal xid (BarrierReply))
 
 	| PacketOutMsg pkt -> 
 		begin
 		  match pkt.po_payload with 
 			| NotBuffered p -> apply_of_actions st pkt.po_port_id p pkt.po_actions 0 0L [] (* XXX cookie -1L? *)
-			| Buffered (n, p) -> process_buffer_id st t p xid n pkt.po_port_id pkt.po_actions 
+			| Buffered (n, p) -> process_buffer_id st conn p xid n pkt.po_port_id pkt.po_actions 
 		end 
 
 	| SetConfigMsg msg -> 
@@ -1329,7 +1315,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 	  | ErrorMsg _ ->
 	*)
 	| _ ->
-	  OSK.send_packet t (Message.marshal xid (Error {err = BadRequest ReqBadType; data = Cstruct.create 0}))
+	  OSK.send_packet conn (Message.marshal xid (Error {err = BadRequest ReqBadType; data = Cstruct.create 0}))
 
 (* end of process_openflow *)
 

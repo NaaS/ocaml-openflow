@@ -10,7 +10,7 @@ let green fmt  = Printf.sprintf ("\027[32m"^^fmt^^"\027[m")
 let yellow fmt = Printf.sprintf ("\027[33m"^^fmt^^"\027[m")
 let blue fmt   = Printf.sprintf ("\027[36m"^^fmt^^"\027[m")
 
-let contaddr= "128.243.20.84"
+let contaddr= "127.0.0.1"
 let contport = 6633
 
 module Main (C: CONSOLE)(S: STACKV4)(N1: NETWORK)(N2: NETWORK) = struct
