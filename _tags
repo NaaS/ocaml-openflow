@@ -1,8 +1,9 @@
 # OASIS_START
-# DO NOT EDIT (digest: 91100739cf79628e9715c4ea2172561d)
+# DO NOT EDIT (digest: 5465b21b75d7c0222fa78894a734a2e9)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
+true: annot, bin_annot
 <**/.svn>: -traverse
 <**/.svn>: not_hygienic
 ".bzr": -traverse
@@ -27,18 +28,16 @@
 "lib/OpenFlow0x01_Core.cmx": for-pack(Openflow)
 "lib/OpenFlow0x04_Core.cmx": for-pack(Openflow)
 "lib/OpenFlow0x01_Stats.cmx": for-pack(Openflow)
-<lib/*.ml{,i}>: pkg_cstruct
-<lib/*.ml{,i}>: pkg_cstruct.syntax
-<lib/*.ml{,i}>: pkg_ipaddr
-<lib/*.ml{,i}>: pkg_lwt
-<lib/*.ml{,i}>: pkg_lwt.syntax
-<lib/*.ml{,i}>: pkg_mirage-clock-unix
-<lib/*.ml{,i}>: pkg_mirage-types
-<lib/*.ml{,i}>: pkg_mirage-unix
-<lib/*.ml{,i}>: pkg_packet
-<lib/*.ml{,i}>: pkg_rpclib
-<lib/*.ml{,i}>: pkg_rpclib.json
-<lib/*.ml{,i}>: pkg_tcpip
+<lib/*.ml{,i,y}>: pkg_cstruct
+<lib/*.ml{,i,y}>: pkg_cstruct.syntax
+<lib/*.ml{,i,y}>: pkg_ipaddr
+<lib/*.ml{,i,y}>: pkg_lwt
+<lib/*.ml{,i,y}>: pkg_lwt.syntax
+<lib/*.ml{,i,y}>: pkg_mirage-clock-unix
+<lib/*.ml{,i,y}>: pkg_mirage-types
+<lib/*.ml{,i,y}>: pkg_mirage-unix
+<lib/*.ml{,i,y}>: pkg_packet
+<lib/*.ml{,i,y}>: pkg_tcpip
 # Library switch
 "lib/switch.cmxs": use_switch
 "lib/ofswitch0x01.cmx": for-pack(Switch)
@@ -48,8 +47,8 @@
 # Library switch_model
 "lib/switch_model.cmxs": use_switch_model
 "lib/ofswitch_model.cmx": for-pack(Switch_model)
-<lib/*.ml{,i}>: pkg_re.str
-<lib/*.ml{,i}>: pkg_tuntap
+<lib/*.ml{,i,y}>: pkg_re.str
+<lib/*.ml{,i,y}>: pkg_tuntap
 # Executable ofcontroller_lwt
 "controller/lwt_controller.native": pkg_cstruct
 "controller/lwt_controller.native": pkg_cstruct.syntax
@@ -60,12 +59,10 @@
 "controller/lwt_controller.native": pkg_mirage-types
 "controller/lwt_controller.native": pkg_mirage-unix
 "controller/lwt_controller.native": pkg_packet
-"controller/lwt_controller.native": pkg_rpclib
-"controller/lwt_controller.native": pkg_rpclib.json
 "controller/lwt_controller.native": pkg_tcpip
 "controller/lwt_controller.native": pkg_tuntap
 "controller/lwt_controller.native": use_openflow
-<controller/*.ml{,i}>: pkg_tuntap
+<controller/*.ml{,i,y}>: pkg_tuntap
 "controller/lwt_controller.native": custom
 # Executable ofswitch_lwt
 "switch/lwt_switch.native": pkg_cstruct
@@ -78,14 +75,12 @@
 "switch/lwt_switch.native": pkg_mirage-unix
 "switch/lwt_switch.native": pkg_packet
 "switch/lwt_switch.native": pkg_re.str
-"switch/lwt_switch.native": pkg_rpclib
-"switch/lwt_switch.native": pkg_rpclib.json
 "switch/lwt_switch.native": pkg_tcpip
 "switch/lwt_switch.native": pkg_tuntap
 "switch/lwt_switch.native": use_openflow
 "switch/lwt_switch.native": use_switch
-<switch/*.ml{,i}>: pkg_tuntap
-<switch/*.ml{,i}>: use_switch
+<switch/*.ml{,i,y}>: pkg_tuntap
+<switch/*.ml{,i,y}>: use_switch
 "switch/lwt_switch.native": custom
 # Executable ofswitch
 "switch/xen_switch.native": pkg_cstruct
@@ -98,24 +93,20 @@
 "switch/xen_switch.native": pkg_mirage-unix
 "switch/xen_switch.native": pkg_packet
 "switch/xen_switch.native": pkg_re.str
-"switch/xen_switch.native": pkg_rpclib
-"switch/xen_switch.native": pkg_rpclib.json
 "switch/xen_switch.native": pkg_tcpip
 "switch/xen_switch.native": use_openflow
-<switch/*.ml{,i}>: pkg_cstruct
-<switch/*.ml{,i}>: pkg_cstruct.syntax
-<switch/*.ml{,i}>: pkg_ipaddr
-<switch/*.ml{,i}>: pkg_lwt
-<switch/*.ml{,i}>: pkg_lwt.syntax
-<switch/*.ml{,i}>: pkg_mirage-clock-unix
-<switch/*.ml{,i}>: pkg_mirage-types
-<switch/*.ml{,i}>: pkg_mirage-unix
-<switch/*.ml{,i}>: pkg_packet
-<switch/*.ml{,i}>: pkg_re.str
-<switch/*.ml{,i}>: pkg_rpclib
-<switch/*.ml{,i}>: pkg_rpclib.json
-<switch/*.ml{,i}>: pkg_tcpip
-<switch/*.ml{,i}>: use_openflow
+<switch/*.ml{,i,y}>: pkg_cstruct
+<switch/*.ml{,i,y}>: pkg_cstruct.syntax
+<switch/*.ml{,i,y}>: pkg_ipaddr
+<switch/*.ml{,i,y}>: pkg_lwt
+<switch/*.ml{,i,y}>: pkg_lwt.syntax
+<switch/*.ml{,i,y}>: pkg_mirage-clock-unix
+<switch/*.ml{,i,y}>: pkg_mirage-types
+<switch/*.ml{,i,y}>: pkg_mirage-unix
+<switch/*.ml{,i,y}>: pkg_packet
+<switch/*.ml{,i,y}>: pkg_re.str
+<switch/*.ml{,i,y}>: pkg_tcpip
+<switch/*.ml{,i,y}>: use_openflow
 # Executable ofcontroller
 "controller/xen_controller.native": pkg_cstruct
 "controller/xen_controller.native": pkg_cstruct.syntax
@@ -127,24 +118,20 @@
 "controller/xen_controller.native": pkg_mirage-unix
 "controller/xen_controller.native": pkg_packet
 "controller/xen_controller.native": pkg_re.str
-"controller/xen_controller.native": pkg_rpclib
-"controller/xen_controller.native": pkg_rpclib.json
 "controller/xen_controller.native": pkg_tcpip
 "controller/xen_controller.native": use_openflow
-<controller/*.ml{,i}>: pkg_cstruct
-<controller/*.ml{,i}>: pkg_cstruct.syntax
-<controller/*.ml{,i}>: pkg_ipaddr
-<controller/*.ml{,i}>: pkg_lwt
-<controller/*.ml{,i}>: pkg_lwt.syntax
-<controller/*.ml{,i}>: pkg_mirage-clock-unix
-<controller/*.ml{,i}>: pkg_mirage-types
-<controller/*.ml{,i}>: pkg_mirage-unix
-<controller/*.ml{,i}>: pkg_packet
-<controller/*.ml{,i}>: pkg_re.str
-<controller/*.ml{,i}>: pkg_rpclib
-<controller/*.ml{,i}>: pkg_rpclib.json
-<controller/*.ml{,i}>: pkg_tcpip
-<controller/*.ml{,i}>: use_openflow
+<controller/*.ml{,i,y}>: pkg_cstruct
+<controller/*.ml{,i,y}>: pkg_cstruct.syntax
+<controller/*.ml{,i,y}>: pkg_ipaddr
+<controller/*.ml{,i,y}>: pkg_lwt
+<controller/*.ml{,i,y}>: pkg_lwt.syntax
+<controller/*.ml{,i,y}>: pkg_mirage-clock-unix
+<controller/*.ml{,i,y}>: pkg_mirage-types
+<controller/*.ml{,i,y}>: pkg_mirage-unix
+<controller/*.ml{,i,y}>: pkg_packet
+<controller/*.ml{,i,y}>: pkg_re.str
+<controller/*.ml{,i,y}>: pkg_tcpip
+<controller/*.ml{,i,y}>: use_openflow
 # OASIS_STOP
 true: annot
 <lib/*>: syntax_camlp4o

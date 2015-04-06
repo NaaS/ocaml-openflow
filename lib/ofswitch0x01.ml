@@ -318,11 +318,8 @@ end
 
 module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 
-  module E = Ethif.Make(N)
   module Channel = Channel.Make(T)
   module OSK = Ofsocket0x01.Make(T)
-
-  type eth_t = E.t 
 
   type port_stats = {
 	mutable port_id : int16;
@@ -342,7 +339,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 
   type port = {
     port_id: portId;
-    ethif: E.t;
+    ethif: N.t;
     port_name: string;
     counter: port_stats;
     phy': PortDescription.t;
@@ -532,7 +529,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 
   let init_port port_no ethif =
     let name = "" in (* XXX TODO *)
-	let hw_addr = Packet.mac_of_string (Macaddr.to_string (E.mac ethif)) in
+	let hw_addr = Packet.mac_of_string (Macaddr.to_string (N.mac ethif)) in
     let (in_queue, in_push) = Lwt_stream.create () in
     let (out_queue, out_push) = Lwt_stream.create () in
     let counter = 
@@ -621,7 +618,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
   (* we have exactly the same function in pcb.mli *)
   let tcp_checksum ~src ~dst =
 	let open SMatch in
-    let pbuf = Cstruct.sub (Cstruct.of_bigarray (Io_page.get 1)) 0 sizeof_pseudo_header in
+    let pbuf = get_new_buffer sizeof_pseudo_header in
     fun data ->
       set_pseudo_header_src pbuf (Ipaddr.V4.to_int32 src);
       set_pseudo_header_dst pbuf (Ipaddr.V4.to_int32 dst);
@@ -846,7 +843,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
   let add_port ?(use_mac=false) (sw : t') ethif = 
 
 	sw.portnum <- sw.portnum + 1;
-	let hw_addr =  Macaddr.to_string (E.mac ethif) in
+	let hw_addr =  Macaddr.to_string (N.mac ethif) in
 	(* let dev_name = N.id (E.id ethif) in *) (* TODO : how to extract dev_name? *)
 	let _ = pp "[switch] Adding port %d '%s' \n%!" 
 								sw.portnum hw_addr in
@@ -860,7 +857,7 @@ module Make(T:TCPV4 (* controller *))(N:NETWORK) = struct
 		supported_capabilities = sw.features'.supported_capabilities;
 		supported_actions = sw.features'.supported_actions;
 		ports = sw.features'.ports @ [port.phy'];};
-	  let _ = N.listen (E.id ethif) (process_frame sw port) in 
+	  let _ = N.listen ethif (process_frame sw port) in 
 	  match sw.controller with
 		| None -> return ()
 		| Some t -> OSK.send_packet t 
@@ -1146,7 +1143,7 @@ let process_openflow (st : t') t (xid, msg) =
 	  done  <&> (
 	  while_lwt true do
 		lwt frame = Lwt_stream.next p.out_queue in
-		E.write p.ethif frame
+		N.write p.ethif frame
 	  done
 	  )
     ) st.ports
@@ -1157,7 +1154,7 @@ let process_openflow (st : t') t (xid, msg) =
 	  | [] -> return ()
 	  | eth::t -> add_port sw eth >> add_switch_ports sw t
 
-  let create_switch tcp cont ethlist =
+  let create_switch tcp cont ethlist dpid =
 		let rec connect_socket () =
 		  let sock = ref None in 
 			try_lwt
@@ -1171,7 +1168,7 @@ let process_openflow (st : t') t (xid, msg) =
 				  | Some t -> return t 
 			with exn -> connect_socket ()
 		in
-		  let sw = init_switch_info 0x100L (* model *) in (* XXX move "verbose" and "dpid" to the unikernel *)
+		  let sw = init_switch_info dpid (* model *) in (* XXX move "verbose" and "dpid" to the unikernel *)
 		  lwt _ = add_switch_ports sw ethlist in
 		  connect_socket ()
 			>>= fun fl -> 

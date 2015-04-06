@@ -1,6 +1,6 @@
 OASISFormat: 0.4
 Name:        openflow
-Version:     0.3.0
+Version:     0.4.0
 Synopsis:    OpenFlow protocol and switch implementations in pure OCaml
 Authors:     Charalampos Rotsos, Richard Mortier, Anil Madhavappedy,
              Balraj Singh, Masoud Koleini
@@ -30,7 +30,7 @@ Library "openflow"
   Pack:                 true
   BuildDepends:         lwt, lwt.syntax, cstruct, cstruct.syntax, ipaddr,
                         mirage-types, mirage-unix, tcpip, mirage-clock-unix,
-                        rpclib, rpclib.json, packet
+                        packet
 
 Document "openflow"
   Title:                OpenFlow docs

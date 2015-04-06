@@ -1,16 +1,16 @@
 # OASIS_START
-# DO NOT EDIT (digest: 4ba36d6dca2e000d1a14f44915c7b4a7)
-version = "0.3.0"
+# DO NOT EDIT (digest: 4ce4fb9b475b81b9a077ac09ec1be10b)
+version = "0.4.0"
 description = "OpenFlow protocol and switch implementations in pure OCaml"
 requires =
-"lwt lwt.syntax cstruct cstruct.syntax ipaddr mirage-types mirage-unix tcpip mirage-clock-unix rpclib rpclib.json packet"
+"lwt lwt.syntax cstruct cstruct.syntax ipaddr mirage-types mirage-unix tcpip mirage-clock-unix packet"
 archive(byte) = "openflow.cma"
 archive(byte, plugin) = "openflow.cma"
 archive(native) = "openflow.cmxa"
 archive(native, plugin) = "openflow.cmxs"
 exists_if = "openflow.cmxa"
 package "switch_model" (
- version = "0.3.0"
+ version = "0.4.0"
  description = "OpenFlow protocol and switch implementations in pure OCaml"
  requires = "re.str tuntap"
  archive(byte) = "switch_model.cma"
@@ -21,7 +21,7 @@ package "switch_model" (
 )
 
 package "switch" (
- version = "0.3.0"
+ version = "0.4.0"
  description = "OpenFlow protocol and switch implementations in pure OCaml"
  requires = "re.str tuntap"
  archive(byte) = "switch.cma"

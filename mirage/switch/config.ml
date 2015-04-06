@@ -32,5 +32,5 @@ let () =
     ([ "tcpip.ethif"; "tcpip.dhcpv4"; "tcpip.channel"; "cstruct.syntax"; "core_kernel"; "sexplib"; "sexplib.syntax"; "packet"; "openflow";] @ unix_libs);
 
   register "ofswitch" [
-    main $ default_console $ (stack default_console) $ (netif "tap1") $ (netif "tap2")
+    main $ default_console $ (stack default_console) $ (netif "1") $ (netif "2")
   ]
