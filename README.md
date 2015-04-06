@@ -16,8 +16,8 @@ To build:
 
     $ make configure ## needed to run `mirage configure`
     $ make depend    ## ensure dependencies for mirage targets installed
-    $ make           ## build (if openflow libraries are already installed)
     $ make install   ## install the openflow libraries per findlib
+    $ make           ## build (if openflow libraries are already installed)
 
 
 Usage
